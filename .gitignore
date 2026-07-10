@@ -1,0 +1,6 @@
+node_modules/
+dist/
+cache/
+output/*.json
+.env
+.DS_Store
