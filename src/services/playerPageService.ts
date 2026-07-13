@@ -6,15 +6,29 @@ import { logProgress } from "../utils/fileUtils.js";
 import { scrapePlayerPage } from "../scraper/playerScraper.js";
 
 export async function processPlayerPages(
-  players: PlayerLink[]
+  players: PlayerLink[],
+  playerLimit: number | undefined = getPlayerLimit()
 ): Promise<{ playerPages: PlayerPageData[]; errors: ScrapeError[] }> {
+  if (
+    playerLimit !== undefined &&
+    (!Number.isInteger(playerLimit) || playerLimit <= 0)
+  ) {
+    throw new Error("Player limit must be a positive integer.");
+  }
+
+  const playersToProcess =
+    playerLimit === undefined ? players : players.slice(0, playerLimit);
   const errors: ScrapeError[] = [];
   const playerPages: PlayerPageData[] = [];
   const limit = pLimit(REQUEST_CONCURRENCY);
 
-  const tasks = players.map((player, index) =>
+  const tasks = playersToProcess.map((player, index) =>
     limit(async () => {
-      logProgress(index + 1, players.length, `Processing ${player.name}...`);
+      logProgress(
+        index + 1,
+        playersToProcess.length,
+        `Processing ${player.name}...`
+      );
 
       const cachedHtml = await readCachedHtml(`cache/players/${player.id}.html`);
       void cachedHtml;
@@ -26,7 +40,7 @@ export async function processPlayerPages(
   const results = await Promise.allSettled(tasks);
 
   results.forEach((result, index) => {
-    const player = players[index];
+    const player = playersToProcess[index];
 
     if (!player) {
       return;
@@ -46,4 +60,20 @@ export async function processPlayerPages(
   });
 
   return { playerPages, errors };
+}
+
+export function getPlayerLimit(
+  value: string | undefined = process.env.PLAYER_LIMIT
+): number | undefined {
+  if (value === undefined || value.trim() === "") {
+    return undefined;
+  }
+
+  const playerLimit = Number(value);
+
+  if (!Number.isInteger(playerLimit) || playerLimit <= 0) {
+    throw new Error("PLAYER_LIMIT must be a positive integer.");
+  }
+
+  return playerLimit;
 }
